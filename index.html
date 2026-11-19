@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FormCoach – Workout-Tracker (Prototyp)</title>
+<style>
+:root{--bg:#0f1318;--card:#181e26;--line:#273040;--text:#e8edf3;--mute:#8b97a7;--acc:#5cf2a6;--warn:#ffcf5c;--bad:#ff6b6b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:baseline;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+header h1{font-size:18px;margin:0}
+header span{font-size:12px;color:var(--mute)}
+main{max-width:760px;margin:0 auto;padding:14px 14px 60px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
+.chip{flex:0 0 auto;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-size:14px;cursor:pointer}
+.chip.on{background:var(--acc);color:#07140d;border-color:var(--acc);font-weight:600}
+.box{position:relative;margin:12px auto;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:4/3;width:100%}
+#stage{position:absolute;inset:0}
+#stage.mirror{transform:scaleX(-1)}
+#stage video,#stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--mute);padding:24px}
+.hud{position:absolute;inset:0;pointer-events:none}
+.reps{position:absolute;left:12px;top:8px;font-size:64px;font-weight:800;line-height:1;text-shadow:0 2px 8px #000}
+.reps small{display:block;font-size:12px;font-weight:500;color:#cfd8e3;letter-spacing:.08em;text-transform:uppercase}
+.side{position:absolute;right:12px;top:10px;text-align:right;font-size:13px;color:#cfd8e3;text-shadow:0 1px 4px #000}
+.side b{font-size:22px;color:#fff}
+.fb{position:absolute;left:10px;right:10px;bottom:10px;padding:9px 12px;border-radius:10px;background:rgba(10,14,18,.78);font-size:14px}
+.fb .sc{display:inline-block;min-width:44px;text-align:center;padding:1px 8px;border-radius:999px;font-weight:700;margin-right:8px;color:#07140d}
+.g{background:var(--acc)}.y{background:var(--warn)}.r{background:var(--bad)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.btn{background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px;cursor:pointer}
+.btn.pri{background:var(--acc);color:#07140d;border-color:var(--acc);font-weight:700}
+.btn.dng{color:var(--bad)}
+.btn:disabled{opacity:.4;cursor:default}
+input[type=number]{width:84px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:14px}
+select{background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:14px}
+.tip{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;color:var(--mute);font-size:13.5px}
+.tip b{color:var(--text)}
+h2{font-size:15px;margin:22px 0 8px}
+.rl{display:flex;flex-wrap:wrap;gap:6px}
+.rc{border-radius:8px;padding:4px 9px;font-size:13px;font-weight:700;color:#07140d}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.card .m{color:var(--mute);font-size:12.5px}
+.day{color:var(--mute);font-size:12.5px;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.06em}
+.x{background:none;border:0;color:var(--mute);cursor:pointer;font-size:18px}
+.note{color:var(--mute);font-size:12.5px;margin-top:22px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#222c38;border:1px solid var(--line);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header><h1>FormCoach</h1><span>Prototyp · Rep-Zähler &amp; Formcheck per Kamera</span></header>
+<main>
+  <div class="chips" id="chips"></div>
+
+  <div class="box" id="box">
+    <div id="stage"><video id="video" playsinline muted></video><canvas id="cv"></canvas></div>
+    <div class="ph" id="ph">Kamera starten oder ein Video deiner Übung laden.</div>
+    <div class="hud">
+      <div class="reps"><span id="repN">0</span><small>Wiederholungen</small></div>
+      <div class="side"><div>Gelenkwinkel</div><b id="ang">–</b><div id="phase"></div></div>
+      <div class="fb" id="fb" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <button class="btn pri" id="bCam">Kamera starten</button>
+    <button class="btn" id="bFlip" disabled>Kamera wechseln</button>
+    <label class="btn">Video laden<input type="file" id="fFile" accept="video/*" hidden></label>
+    <button class="btn" id="bStop" disabled>Stopp</button>
+  </div>
+
+  <div class="tip" id="tip"></div>
+
+  <h2>Aktueller Satz</h2>
+  <div class="row">
+    <label>Gewicht <input type="number" id="kg" min="0" step="0.5" placeholder="kg"> kg</label>
+    <button class="btn pri" id="bSave" disabled>Satz speichern</button>
+    <button class="btn" id="bReset" disabled>Zurücksetzen</button>
+  </div>
+  <div class="rl" id="rl"><span style="color:var(--mute)">Noch keine Wiederholung gezählt.</span></div>
+
+  <h2>Verlauf</h2>
+  <div id="hist"></div>
+
+  <p class="note">Prototyp: Die Bewertung ist regelbasiert (Winkel, Tempo, Symmetrie) und nur eine grobe Orientierung – kein Ersatz für einen Trainer. Das Video wird nur im Browser verarbeitet und nicht hochgeladen.</p>
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script>
+"use strict";
+const CDN = (window.MP_BASE || "https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404");
+const VIS = 0.5;
+
+/* ---------- Geometrie ---------- */
+const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+function angle3(a, b, c) {
+  const v1x = a.x - b.x, v1y = a.y - b.y, v2x = c.x - b.x, v2y = c.y - b.y;
+  const m = Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y);
+  if (!m) return null;
+  return Math.acos(Math.max(-1, Math.min(1, (v1x * v2x + v1y * v2y) / m))) * 180 / Math.PI;
+}
+// Winkel der Strecke a->b zur Senkrechten (0 = senkrecht, 90 = waagerecht)
+function fromVertical(a, b) {
+  const vx = b.x - a.x, vy = b.y - a.y, m = Math.hypot(vx, vy);
+  if (!m) return null;
+  return Math.acos(Math.max(-1, Math.min(1, Math.abs(vy) / m))) * 180 / Math.PI;
+}
+const okv = (p, ...ids) => ids.every(i => p[i].v >= VIS);
+const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+function torsoLen(p) { return okv(p, 11, 12, 23, 24) ? dist(mid(p[11], p[12]), mid(p[23], p[24])) : null; }
+function torsoLean(p) {
+  const v = [];
+  if (okv(p, 11, 23)) v.push(fromVertical(p[11], p[23]));
+  if (okv(p, 12, 24)) v.push(fromVertical(p[12], p[24]));
+  return v.length ? avg(v) : null;
+}
+function armDrift(p) {
+  const v = [];
+  if (okv(p, 11, 13)) v.push(fromVertical(p[11], p[13]));
+  if (okv(p, 12, 14)) v.push(fromVertical(p[12], p[14]));
+  return v.length ? avg(v) : null;
+}
+const mx = (m, k, v) => { if (v != null) m[k] = m[k] == null ? v : Math.max(m[k], v); };
+const mn = (m, k, v) => { if (v != null) m[k] = m[k] == null ? v : Math.min(m[k], v); };
+
+/* ---------- Übungen ----------
+   Alle Übungen = ein Gelenkwinkel, der "gestreckt" -> "gebeugt" -> "gestreckt" läuft.
+   ext: ab hier gilt der Arm/das Bein als gestreckt; flex: hier zählt der Umkehrpunkt als erreicht;
+   partial: darunter gilt es als (nicht gezählte) halbe Wiederholung. */
+const ARM = { L: [11, 13, 15], R: [12, 14, 16] };
+const LEG = { L: [23, 25, 27], R: [24, 26, 28] };
+const EX = {
+  squat: {
+    name: "Kniebeugen", joint: LEG, ext: 160, flex: 105, partial: 130,
+    goodDepth: 95, depthMsg: "Etwas tiefer – Oberschenkel mindestens parallel",
+    lockGood: 168, lockMsg: "Oben die Hüfte ganz aufrichten",
+    eccPhase: "first", eccMin: 0.7, eccMsg: "Zu schnell abgesenkt – kontrolliert runter",
+    tip: "<b>Aufstellung:</b> Handy seitlich in ca. 2–3 m Abstand auf Hüfthöhe, ganzer Körper im Bild. Für die Knie-Achse (X-Beine) alternativ von vorne filmen.",
+    track(m, c) {
+      mx(m, "lean", torsoLean(c.pts));
+      const p = c.pts, tl = torsoLen(p);
+      if (tl && okv(p, 11, 12, 25, 26, 27, 28) && Math.abs(p[11].x - p[12].x) / tl > 0.55) {
+        const an = Math.abs(p[27].x - p[28].x);
+        if (an > 0.05) mn(m, "valg", Math.abs(p[25].x - p[26].x) / an);
+      }
+    },
+    extra(m, add) {
+      if (m.lean > 60) add(Math.min(20, m.lean - 60), "Oberkörper zu weit nach vorne");
+      if (m.valg != null && m.valg < 0.75) add(15, "Knie fallen nach innen");
+    }
+  },
+  dips: {
+    name: "Dips", joint: ARM, ext: 150, flex: 100, partial: 125,
+    goodDepth: 90, depthMsg: "Tiefer – Ellbogen auf ca. 90°", minDepth: 55, tooDeepMsg: "Nicht zu tief – schont die Schulter",
+    lockGood: 160, lockMsg: "Oben die Arme ganz strecken",
+    eccPhase: "first", eccMin: 0.7, eccMsg: "Zu schnell abgesenkt – kontrolliert runter",
+    tip: "<b>Aufstellung:</b> Handy seitlich oder schräg vorne, Arme und Schultern frei im Bild, Abstand ca. 2–3 m.",
+    track(m, c) { mx(m, "sym", c.sym); },
+    extra(m, add) { if (m.sym > 20) add(10, "Arme ungleich – beide Seiten gleich tief"); }
+  },
+  pullup: {
+    name: "Klimmzüge", joint: ARM, ext: 150, flex: 100, partial: 125,
+    goodDepth: 85, depthMsg: "Höher ziehen",
+    lockGood: 165, lockMsg: "Unten ganz hängen lassen",
+    eccPhase: "second", eccMin: 0.7, eccMsg: "Zu schnell abgelassen – kontrolliert runter",
+    tip: "<b>Aufstellung:</b> Handy seitlich oder frontal in ca. 3 m Abstand, Stange und ganzer Körper im Bild. Für „Kinn über Stange“ müssen Kopf und Hände sichtbar sein.",
+    track(m, c) {
+      const p = c.pts, tl = torsoLen(p);
+      mx(m, "lean", torsoLean(p)); mn(m, "leanMin", torsoLean(p));
+      const wr = [15, 16].filter(i => p[i].v >= VIS);
+      if (tl && wr.length && p[0].v >= VIS) {
+        m.chinSeen = true;
+        if (p[0].y <= avg(wr.map(i => p[i].y)) + 0.12 * tl) m.chin = true;
+      }
+    },
+    extra(m, add) {
+      if (m.chinSeen && !m.chin) add(25, "Kinn nicht über die Stange");
+      if (m.lean != null && m.leanMin != null && m.lean - m.leanMin > 25) add(15, "Zu viel Schwung (Kipping)");
+    }
+  },
+  curl: {
+    name: "Bizepscurls", joint: ARM, ext: 150, flex: 70, partial: 110,
+    goodDepth: 55, depthMsg: "Oben weiter hochcurlen",
+    lockGood: 160, lockMsg: "Unten den Arm ganz strecken",
+    eccPhase: "second", eccMin: 0.7, eccMsg: "Zu schnell abgelassen – Gewicht kontrolliert senken",
+    tip: "<b>Aufstellung:</b> Handy seitlich in ca. 2 m Abstand, Oberkörper und Arm im Bild.",
+    track(m, c) { mx(m, "drift", armDrift(c.pts)); const l = torsoLean(c.pts); mx(m, "lean", l); mn(m, "leanMin", l); },
+    extra(m, add) {
+      if (m.drift > 30) add(20, "Ellbogen bleibt nicht am Körper");
+      if (m.lean != null && m.leanMin != null && m.lean - m.leanMin > 12) add(15, "Oberkörper pendelt – nicht schwingen");
+    }
+  },
+  bench: {
+    name: "Bankdrücken", joint: ARM, ext: 150, flex: 100, partial: 125,
+    goodDepth: 90, depthMsg: "Etwas tiefer – Stange näher an die Brust",
+    lockGood: 160, lockMsg: "Oben die Arme ganz strecken",
+    eccPhase: "first", eccMin: 0.7, eccMsg: "Zu schnell abgesenkt – kontrolliert runter",
+    tip: "<b>Aufstellung:</b> Handy seitlich auf Höhe der Bank in ca. 2 m Abstand (oder vom Kopfende, dann siehst du beide Arme und die Symmetrie).",
+    track(m, c) { mx(m, "sym", c.sym); },
+    extra(m, add) { if (m.sym > 18) add(15, "Seiten ungleich – Stange gerade drücken"); }
+  }
+};
+
+/* ---------- Rep-Counter ---------- */
+function sideAngles(p, cfg) {
+  const o = {};
+  for (const s of ["L", "R"]) {
+    const t = cfg.joint[s];
+    if (t.every(i => p[i].v >= VIS)) o[s] = angle3(p[t[0]], p[t[1]], p[t[2]]);
+  }
+  return o;
+}
+function evaluate(cfg, r) {
+  const pen = [], add = (p, msg) => pen.push({ p: Math.round(p), msg });
+  if (r.min > cfg.goodDepth) add(Math.min(30, r.min - cfg.goodDepth), cfg.depthMsg);
+  if (cfg.minDepth != null && r.min < cfg.minDepth) add(15, cfg.tooDeepMsg);
+  if (r.peak < cfg.lockGood) add(Math.min(15, (cfg.lockGood - r.peak) * 0.8), cfg.lockMsg);
+  const ecc = cfg.eccPhase === "first" ? r.tMin - r.tStart : r.tLock - r.tMin;
+  if (ecc < cfg.eccMin) add(15, cfg.eccMsg);
+  cfg.extra(r.m, add);
+  pen.sort((a, b) => b.p - a.p);
+  return { score: Math.max(0, 100 - pen.reduce((s, x) => s + x.p, 0)), issues: pen.map(x => x.msg) };
+}
+class RepCounter {
+  constructor(cfg) { this.cfg = cfg; this.reset(); }
+  reset() { this.reps = []; this.partials = 0; this.phase = "idle"; this.sm = null; this.lastT = null; this.rep = null; this.tracking = false; this.angle = null; this.tExt = null; }
+  start(t) { this.phase = "rep"; this.rep = { tStart: this.tExt == null ? t : this.tExt, tMin: t, min: 999, peak: 0, bottom: false, tBottom: null, tLock: null, m: {} }; }
+  finish(r) {
+    const ev = evaluate(this.cfg, r);
+    const rep = { n: this.reps.length + 1, score: ev.score, issues: ev.issues, min: Math.round(r.min), peak: Math.round(r.peak), dur: +(r.tLock - r.tStart).toFixed(2) };
+    this.reps.push(rep);
+    return { type: "rep", rep };
+  }
+  update(p, t) {
+    const cfg = this.cfg, events = [];
+    const sa = sideAngles(p, cfg), vals = Object.values(sa);
+    if (!vals.length) { this.tracking = false; return events; }
+    this.tracking = true;
+    const raw = avg(vals);
+    const dt = this.lastT == null ? 1 : Math.min(0.5, Math.max(0.001, t - this.lastT));
+    this.lastT = t;
+    const k = 1 - Math.exp(-dt / 0.07);
+    this.sm = this.sm == null ? raw : this.sm + k * (raw - this.sm);
+    const a = this.sm; this.angle = a;
+    const ctx = { pts: p, sa, t, sym: vals.length === 2 ? Math.abs(sa.L - sa.R) : null };
+    const r = this.rep;
+    if (a >= cfg.ext) this.tExt = t;   // letzter Zeitpunkt in Streckung = Beginn der nächsten Bewegung
+    if (this.phase === "idle") {
+      if (a < cfg.ext - 12) this.start(t);
+    } else if (this.phase === "rep") {
+      if (a < r.min) { r.min = a; r.tMin = t; }
+      if (!r.bottom && a < cfg.flex) { r.bottom = true; r.tBottom = t; }
+      cfg.track(r.m, ctx);
+      if (a >= cfg.ext) {
+        if (r.bottom) { this.phase = "lock"; r.peak = a; r.tLock = t; }
+        else {
+          if (r.min < cfg.partial) { this.partials++; events.push({ type: "partial", min: Math.round(r.min) }); }
+          this.phase = "idle"; this.rep = null;
+        }
+      } else if (t - r.tStart > 20) { this.phase = "idle"; this.rep = null; }
+    } else if (this.phase === "lock") {
+      cfg.track(r.m, ctx);
+      if (a > r.peak) r.peak = a;
+      if (a < r.peak - 6 || t - r.tLock > 0.4) {
+        events.push(this.finish(r)); this.rep = null; this.phase = "idle";
+        if (a < cfg.ext - 12) this.start(t);
+      }
+    }
+    return events;
+  }
+}
+
+/* ---------- App-State & UI ---------- */
+const $ = id => document.getElementById(id);
+const video = $("video"), cv = $("cv"), ctx2 = cv.getContext("2d");
+let exKey = "squat", counter = new RepCounter(EX[exKey]);
+let pose = null, running = false, source = null, stream = null, facing = "user", lastT = 0, audio = null;
+let history = [];
+try { history = JSON.parse(localStorage.getItem("formcoach.v1") || "[]"); } catch (e) { history = []; }
+const persist = () => { try { localStorage.setItem("formcoach.v1", JSON.stringify(history)); } catch (e) {} };
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("show"), 2600); }
+const cls = s => s >= 85 ? "g" : s >= 65 ? "y" : "r";
+function beep() {
+  try { if (!audio) return; const o = audio.createOscillator(), g = audio.createGain(); o.frequency.value = 880; g.gain.value = 0.06; o.connect(g); g.connect(audio.destination); o.start(); o.stop(audio.currentTime + 0.09); } catch (e) {}
+}
+
+function renderChips() {
+  $("chips").innerHTML = Object.entries(EX).map(([k, e]) => `<button class="chip${k === exKey ? " on" : ""}" data-k="${k}">${e.name}</button>`).join("");
+  $("tip").innerHTML = EX[exKey].tip;
+}
+$("chips").addEventListener("click", e => {
+  const k = e.target.dataset.k; if (!k || k === exKey) return;
+  if (counter.reps.length) saveSet(true);
+  exKey = k; counter = new RepCounter(EX[k]); renderChips(); renderSet(); hud();
+});
+
+function renderSet() {
+  const reps = counter.reps;
+  $("rl").innerHTML = reps.length ? reps.map(r => `<span class="rc ${cls(r.score)}" title="${r.issues.join(" · ")}">${r.n}: ${r.score}</span>`).join("")
+    : `<span style="color:var(--mute)">Noch keine Wiederholung gezählt.</span>`;
+  $("bSave").disabled = !reps.length; $("bReset").disabled = !reps.length && !counter.partials;
+  $("repN").textContent = reps.length;
+}
+function hud() {
+  $("repN").textContent = counter.reps.length;
+  $("ang").textContent = counter.tracking && counter.angle != null ? Math.round(counter.angle) + "°" : "–";
+  $("phase").textContent = !running ? "" : !counter.tracking ? "Körper nicht erkannt" : counter.phase === "idle" ? "Bereit" : counter.phase === "rep" ? (counter.rep && counter.rep.bottom ? "Zurück nach oben" : "Unterwegs") : "Oben";
+}
+function showFb(html, c) { const f = $("fb"); f.style.display = "block"; f.innerHTML = html; f.dataset.c = c; clearTimeout(showFb.h); showFb.h = setTimeout(() => { f.style.display = "none"; }, 4500); }
+
+function handleEvents(evs) {
+  for (const e of evs) {
+    if (e.type === "rep") {
+      beep(); renderSet();
+      const r = e.rep;
+      showFb(`<span class="sc ${cls(r.score)}">${r.score}</span>${r.issues.length ? r.issues.slice(0, 2).join(" · ") : "Saubere Wiederholung"}`);
+    } else if (e.type === "partial") {
+      showFb(`<span class="sc r">–</span>Nicht gezählt: nicht tief genug (nur ${e.min}°)`);
+      renderSet();
+    }
+  }
+}
+
+/* Landmarken verarbeiten (auch vom Test aufrufbar) */
+function processLandmarks(lm, t, aspect) {
+  const p = lm.map(l => ({ x: l.x * aspect, y: l.y, v: l.visibility == null ? 1 : l.visibility }));
+  const evs = counter.update(p, t);
+  handleEvents(evs); hud();
+  return evs;
+}
+
+const CONN = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28]];
+function onResults(res) {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  ctx2.clearRect(0, 0, w, h);
+  const lm = res.poseLandmarks;
+  if (!lm) { counter.tracking = false; hud(); return; }
+  const act = new Set(Object.values(EX[exKey].joint).flat());
+  ctx2.lineWidth = Math.max(3, w / 220);
+  for (const [a, b] of CONN) {
+    if ((lm[a].visibility ?? 1) < VIS || (lm[b].visibility ?? 1) < VIS) continue;
+    ctx2.strokeStyle = act.has(a) && act.has(b) ? "#5cf2a6" : "rgba(255,255,255,.55)";
+    ctx2.beginPath(); ctx2.moveTo(lm[a].x * w, lm[a].y * h); ctx2.lineTo(lm[b].x * w, lm[b].y * h); ctx2.stroke();
+  }
+  for (const i of [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) {
+    if ((lm[i].visibility ?? 1) < VIS) continue;
+    ctx2.fillStyle = act.has(i) ? "#5cf2a6" : "#fff";
+    ctx2.beginPath(); ctx2.arc(lm[i].x * w, lm[i].y * h, Math.max(4, w / 160), 0, 7); ctx2.fill();
+  }
+  processLandmarks(lm, lastT, w / h);
+}
+
+async function ensurePose() {
+  if (pose) return;
+  if (typeof Pose === "undefined") throw new Error("MediaPipe konnte nicht geladen werden (Internetverbindung?)");
+  pose = new Pose({ locateFile: f => `${CDN}/${f}` });
+  pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+  pose.onResults(onResults);
+  await pose.initialize();
+}
+function sizeBox() {
+  const w = video.videoWidth, h = video.videoHeight; if (!w) return;
+  const box = $("box"); box.style.aspectRatio = w + "/" + h;
+  box.style.width = `min(100%, ${Math.round(window.innerHeight * 0.72 * w / h)}px)`;
+}
+function schedule() {
+  if (!running) return;
+  if ("requestVideoFrameCallback" in video) video.requestVideoFrameCallback(tick); else requestAnimationFrame(tick);
+}
+async function tick() {
+  if (!running) return;
+  if (video.readyState >= 2 && !video.ended) {
+    lastT = source === "file" ? video.currentTime : performance.now() / 1000;
+    try { await pose.send({ image: video }); } catch (e) { console.error(e); }
+  }
+  if (source === "file" && video.ended) { running = false; setButtons(); toast("Video zu Ende – Satz speichern nicht vergessen."); return; }
+  schedule();
+}
+function setButtons() {
+  $("bStop").disabled = !running; $("bFlip").disabled = source !== "cam" || !running;
+  $("bCam").textContent = running && source === "cam" ? "Kamera läuft" : "Kamera starten";
+  $("ph").style.display = running || video.readyState >= 2 ? "none" : "flex";
+  $("stage").classList.toggle("mirror", source === "cam" && facing === "user");
+}
+function stopAll() {
+  running = false;
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  video.pause(); video.srcObject = null; video.removeAttribute("src"); video.load();
+  ctx2.clearRect(0, 0, cv.width, cv.height); source = null; setButtons(); hud();
+}
+async function begin(kind) {
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+  const was = running; if (was) { running = false; await new Promise(r => setTimeout(r, 60)); }
+  toast("Modell lädt …");
+  await ensurePose();
+  counter.reset(); renderSet(); hud();
+  source = kind; running = true; setButtons(); sizeBox(); schedule();
+}
+$("bCam").onclick = async () => {
+  try {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    source = "cam";
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    video.srcObject = stream; await video.play(); await begin("cam");
+    video.addEventListener("loadedmetadata", sizeBox, { once: true });
+  } catch (e) {
+    source = null; running = false; setButtons();
+    toast("Kamera nicht verfügbar: " + (e && e.message ? e.message : e) + " – du kannst stattdessen ein Video laden.");
+  }
+};
+$("bFlip").onclick = () => { facing = facing === "user" ? "environment" : "user"; $("bCam").onclick(); };
+$("fFile").onchange = async ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  try {
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; video.srcObject = null; }
+    video.src = URL.createObjectURL(f); video.muted = true;
+    await new Promise((res, rej) => { video.onloadeddata = res; video.onerror = () => rej(new Error("Video nicht lesbar")); });
+    await video.play(); await begin("file");
+  } catch (e) { toast("Fehler: " + (e.message || e)); }
+  ev.target.value = "";
+};
+$("bStop").onclick = stopAll;
+
+function saveSet(auto) {
+  const reps = counter.reps; if (!reps.length) return;
+  history.unshift({ id: Date.now(), ts: Date.now(), ex: exKey, reps: reps.length, avg: Math.round(avg(reps.map(r => r.score))), kg: parseFloat($("kg").value) || null, scores: reps.map(r => r.score) });
+  persist(); counter.reset(); renderSet(); renderHist(); hud();
+  toast(auto ? "Satz automatisch gespeichert." : "Satz gespeichert.");
+}
+$("bSave").onclick = () => saveSet(false);
+$("bReset").onclick = () => { counter.reset(); renderSet(); hud(); };
+function renderHist() {
+  if (!history.length) { $("hist").innerHTML = `<span style="color:var(--mute)">Noch keine gespeicherten Sätze.</span>`; return; }
+  let html = "", lastDay = "";
+  for (const s of history) {
+    const d = new Date(s.ts), day = d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit" });
+    if (day !== lastDay) { html += `<div class="day">${day}</div>`; lastDay = day; }
+    html += `<div class="card"><div><b>${EX[s.ex] ? EX[s.ex].name : s.ex}</b> · ${s.reps} Wdh.${s.kg ? " · " + s.kg + " kg" : ""}
+      <div class="m">${d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} · Einzelwerte ${s.scores.join(", ")}</div></div>
+      <div style="display:flex;align-items:center;gap:6px"><span class="rc ${cls(s.avg)}">Ø ${s.avg}</span><button class="x" data-id="${s.id}" title="Löschen">×</button></div></div>`;
+  }
+  $("hist").innerHTML = html;
+}
+$("hist").addEventListener("click", e => { const id = e.target.dataset.id; if (!id) return; history = history.filter(s => String(s.id) !== id); persist(); renderHist(); });
+
+renderChips(); renderSet(); renderHist(); hud();
+window.__app = { processLandmarks, get counter() { return counter; }, setEx(k) { exKey = k; counter = new RepCounter(EX[k]); }, EX };
+</script>
+</body>
+</html>
